@@ -1,0 +1,140 @@
+import random
+import gzip
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+def loadData(path_images, path_labels):
+    images = gzip.open(path_images, "rb")
+    images = np.frombuffer(images.read(), np.uint8, offset=16)
+    shape = images.shape[0]
+    images = images.reshape(int(shape/784), 28, 28)
+    for i in range(9):
+        plt.subplot(330 + 1 + i)
+        imgplot = plt.imshow(images[i,:], cmap='gray')
+    plt.show()
+    images = images.reshape(int(shape/784), 784)
+    # print(images[577][469])
+    labels = gzip.open(path_labels, "rb")
+    labels = np.frombuffer(labels.read(), np.uint8, offset=8)
+    labels = np.eye(10)[labels]
+    labels = labels.reshape(int(shape/784), 10)
+    print("labels shape:\t", labels.shape,"\n", "images shape:\t", images.shape)
+    return images, labels
+
+def preprocessing(images, labels):
+    images = images/255
+    # images = (images - images.min())/(images.max() - images.min())
+    images = np.hstack((np.ones((images.shape[0], 1)), images))
+    print("labels preProcessing:\t", labels.shape, "\n", "images preProcessing:\t", images.shape)
+    return images, labels
+
+def mini_batch(images, labels, batch_size):
+    miniBatch_images = images.reshape((images.shape[0]//batch_size, batch_size, images.shape[1]))
+    miniBatch_labels = labels.reshape((labels.shape[0]//batch_size,  batch_size, 10))
+    print("mini Batch images:\t", miniBatch_images.shape, "\nmini Batch labels:\t",  miniBatch_labels.shape)
+    return miniBatch_images , miniBatch_labels
+
+def initial(x_size, hidden_neurons_num , class_size):
+    thetta_1 = 0.0001*np.random.rand(hidden_neurons_num+1, x_size)
+    # bias_1 = np.zeros(hidden_neurons_num)
+    thetta_2 = 0.0001*np.random.rand(class_size, 1+hidden_neurons_num)
+    # bias_2 = np.zeros(class_size)
+    print("thrtta_2_shape:", thetta_2.shape, "\nthrtta_1_shape:", thetta_1.shape)
+    return thetta_1,thetta_2
+
+def forward(x, thetta_1, thetta_2):
+    h_1 = sigmoid(np.dot(thetta_1, x))
+    # print(h_1, np.dot(thetta_2, h_1), "\n\n\n\n\n")
+    # tt_2 = thetta_2
+    # ht_2 = h_1
+    h_2 = thetta_2 @ h_1
+    return h_1, h_2
+
+def power_loss(h_2, labels, m, class_size):
+    if (np.argmax(h_2) == np.argmax(labels)).any():
+        if True:
+                dJ_h2 = 1
+    else:
+                dJ_h2 = 0
+    return dJ_h2
+
+def backward(dJ, x, thetta_1, hidden_neurons_num, h_1, h_2,thetta_2, ):
+    Sig_2 = dJ * dif_sigmoid(np.dot(thetta_2, h_1))       #thetta_2 =10 * 30  h_1: 30 * 1  deltha_2 : 10 * 1
+    # print(deltha_2.shape, thetta_1.shape, thetta_2.shape, h_1.shape, h_2.shape, (deltha_2.reshape(1, -1)  @ thetta_2.reshape(10, 29)).shape)
+    Sig_1 = (Sig_2.reshape(1, -1)  @ thetta_2.reshape(10, hidden_neurons_num +1) ) * dif_sigmoid(np.dot(thetta_1, x))
+    # B_2 = dJ * dif_sigmoid(np.dot(bias_2, h_1)).reshape(-1, 1) @ h_1.reshape(1, -1)
+    # B_1 = (Sig_2.reshape(1, -1)  @ thetta_2.reshape(10, hidden_neurons_num) ) * dif_sigmoid(np.dot(bias_1, x)) @ x.reshape(1, -1)
+    D_2 = Sig_2.reshape(-1, 1) @ h_1.reshape(1, -1)
+    D_1 = Sig_1.reshape(-1, 1) @ x.reshape(1, -1)
+    return Sig_1, D_1, D_2
+
+def sigmoid(z):
+    a = np.exp(-z)
+    aa = 1 / (1 + a)
+    return aa
+
+def dif_sigmoid(z):
+    sigmoid(z)
+    return np.exp(-z) * sigmoid(z)
+
+def hypothesis(x, thetta):
+    a = thetta @ x
+    return a
+
+def deltha(deltha_n, thetta_n_1, z_n_1):
+    deltha_n_1 = (deltha_n @ thetta_n_1)* np.exp(-z_n_1) * sigmoid(z_n_1) * sigmoid(z_n_1)
+    return deltha_n_1
+
+def learn(x, thetta_1, thetta_2, labels, learning_rate, n_epoch, hidden_neurons_num):
+    m, n, k = np.shape(x)           #2400, 25, 785
+    # print(thetta_2.shape, inc_1.shape, thetta_2.shape, inc_2.shape)
+    for e in range(0, int(n_epoch), 1):
+        list_J = []
+        list_Iteration = []
+        loss_m, dJ_m, loss_n, = 0, 0, 0
+        for iteration in range(0, int(m), 1):
+            dJ_n = 0
+            for batch in range(n):                          # 25
+                h_1, h_2 = forward(x[iteration, batch, :], thetta_1, thetta_2)
+                dJ_one = power_loss(h_2, labels[iteration, batch, :], n, class_size=10)
+                dJ_n += dJ_one
+                Sig_1 ,Del_1, Del_2 = backward(dJ_n, x[iteration, batch, :], thetta_1, hidden_neurons_num, h_1, h_2, thetta_2)
+            list_J.append(dJ_n/n)
+            loss_n = np.power(dJ_n, 2)
+            list_Iteration.append(iteration)
+            # bias_1 = bias_1 - learning_rate * B_1 / n
+            # bias_2 = bias_2 - learning_rate * B_2 / n
+            thetta_1 = thetta_1 - learning_rate * Del_1 / n
+            thetta_2 = thetta_2 - learning_rate * Del_2 / n
+            # print(dJ_n/n, loss_n/n)
+            dJ_m += dJ_n / (m * n)
+        list_Iteration.append(e)
+        list_J.append(dJ_m / (m*n))
+        plt.scatter(list_J, list_Iteration)
+        plt.show()
+        loss_m += np.power(dJ_m, 2)/(m*n)
+    return thetta_1, thetta_2, dJ_m
+
+def predict(x, thetta_1, thetta_2):
+    h_1 = sigmoid(np.dot(thetta_1, np.transpose(x)) )
+    h_2 = thetta_2 @ h_1
+    print(np.argmax(h_2, axis=0).shape, h_2.shape)
+    return np.argmax(h_2, axis=0)
+
+if __name__ == "__main__":
+      train_images, train_labels = loadData('train-images-idx3-ubyte.gz', 'train-labels-idx1-ubyte.gz')
+      train_images, train_labels = preprocessing(train_images, train_labels)
+      train_images_miniBatch, train_labels_miniBatch = mini_batch(train_images, train_labels, 25)
+      thetta_1, thetta_2 = initial(785, hidden_neurons_num=91, class_size=10)
+      print(train_images_miniBatch.shape,train_labels_miniBatch.shape)
+      thetta_1_opt, thetta_2_opt, loss = learn(train_images_miniBatch, thetta_1, thetta_2,train_labels_miniBatch, learning_rate=0.002, n_epoch=2, hidden_neurons_num=91)
+      print(predict(train_images, thetta_1_opt, thetta_2_opt))
+      # h_1, h_2 = forward(train_images_miniBatch, thetta_1, bias_1, thetta_2, bias_2)
+
+      print("----------------------------- test----------------------------------------------------")
+      test_images, test_labels = loadData('t10k-images-idx3-ubyte.gz', 't10k-labels-idx1-ubyte.gz')
+      test_images, test_labels = preprocessing(test_images, test_labels)
+      print("yee:\t", test_images.shape, thetta_1.shape, thetta_2.shape)
+      out = predict(test_images, thetta_1_opt, thetta_2_opt)
+      print(out)
+
